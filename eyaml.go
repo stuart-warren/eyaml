@@ -12,10 +12,6 @@ import (
 	"go.mozilla.org/pkcs7"
 )
 
-const (
-	PKCS7ENCPattern = `ENC\[PKCS7,([0-9A-z/=\+\s]+)\]`
-)
-
 type EyamlPkcs7 struct {
 	PrivateKey crypto.PrivateKey
 	PublicCert *x509.Certificate
@@ -52,17 +48,11 @@ func (e EyamlPkcs7) DecryptBytes(data []byte) ([]byte, error) {
 
 func (e EyamlPkcs7) Decrypt(r io.Reader) ([]byte, error) {
 	reader := e.newDecryptReader(r)
-	data := make([]byte, 1024)
-	for {
-		_, err := reader.Read(data)
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return []byte{}, err
-		}
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		return []byte{}, err
 	}
-	return bytes.Trim(data, "\x00"), nil
+	return data, nil
 }
 
 type eyamlPkcs7DecryptReader struct {
@@ -90,12 +80,13 @@ func (r *eyamlPkcs7DecryptReader) Read(buf []byte) (int, error) {
 
 	count := 0
 	data := []byte{}
-	_, err := r.source.Read(buf)
+	source := make([]byte, len(buf))
+	_, err := r.source.Read(source)
 	if err != nil {
 		return 0, err
 	}
 
-	for i, b := range buf {
+	for i, b := range source {
 		switch true {
 		case b == 'E' && r.markerStartIndex == -1:
 			r.markerStartIndex = i
@@ -132,7 +123,7 @@ func (r *eyamlPkcs7DecryptReader) Read(buf []byte) (int, error) {
 		}
 	}
 
-	count = copy(buf, data[:len(buf)])
+	count = copy(buf, bytes.Trim(data, "\x00"))
 	r.pointer += count
 	return count, nil
 }

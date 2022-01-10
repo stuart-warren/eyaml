@@ -2,8 +2,6 @@ package eyaml_test
 
 import (
 	"encoding/base64"
-	"fmt"
-	"regexp"
 	"strings"
 	"testing"
 
@@ -16,7 +14,21 @@ const (
 ---
 hello-world: ENC[PKCS7,MIIBeQYJKoZIhvcNAQcDoIIBajCCAWYCAQAxggEhMIIBHQIBADAFMAACAQEwDQYJKoZIhvcNAQEBBQAEggEAR9V0CrIHHnAMSBZm9/jBhjFLpqEyntR4z92ClSjC63uldYeFm5v3zdom3NisE7kTNTUff3TV0UmTNFsgwMHNvW0YWN8zGYBLkmeSj3C47WLCwAp1AyQeS7UFbvNLZFY5uM9UNgDhWP6OTQT1RTefwzSZ5cLTtk68jrnVJCSbSF725S6DdzA5uwC1OvNRf8YvOeNUcsSQQMrcn1JLfQzsrz3X3HIfFK0FQUf6n//mKrtG4KLLm1r04Ds8vkvWDS6YZ5WmKDz6nU1zedGuJymWEmhqJsNJd3GuoZk/3MfINcECplSmPOEavoR7nvKSQ1R2HPmdqe9t80tgvDSCi5VeTzA8BgkqhkiG9w0BBwEwHQYJYIZIAWUDBAEqBBC8ZdN8KqWvPGs2SmCw5miCgBB3dTNhWREgeg5bh8fk3Pa/]
 `
-	pubCert = `
+	testFile2 = `
+---
+hello-world: >
+	ENC[PKCS7,MIIBeQYJKoZIhvcNAQcDoIIBajCCAWYCAQAxggEhMIIBHQIBAD
+	AFMAACAQEwDQYJKoZIhvcNAQEBBQAEggEACWO6CXyf5sJ9vgtMqEPqaBd6hC
+	O7lhOIWOF6Azy2x50ByVylqRcjpEGRbkOXZ5gyjPQS6V54ye8kSA0XHvrExe
+	+D88s6FZx4e5ELvc8UeOmfuDsF2K6a7nIZ3+NVwdwRss6X4a72ElIZQp2pob
+	7eUBTRU1YFipOLccFHncW8KzV2JAs4XU7fCoFPTjgaTFQ30iyeKpEmcZHdg/
+	vQJOdkhiUHCuIMktkCb132kEwT3XClb4ABBoEdIbDHnKUCg7lGU3GlHSKG6t
+	6fMTIpIAShqzw89jFlie0iNCghxqQsSxN3chPA6plXxR8pZ/QcEfSaGOZisa
+	TP0+49I5JBk2i4qDA8BgkqhkiG9w0BBwEwHQYJYIZIAWUDBAEqBBDqGci6kI
+	3pQ2loN6bJSj0TgBCzLgpKaC2Kttx2rk8RMZ9m]
+`
+	testExpected = "hello-world"
+	pubCert      = `
 -----BEGIN CERTIFICATE-----
 MIIC2TCCAcGgAwIBAgIBATANBgkqhkiG9w0BAQsFADAAMCAXDTIyMDEwOTA0MDM0
 MloYDzIwNzExMjI4MDQwMzQyWjAAMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIB
@@ -79,25 +91,8 @@ func TestPKCS7SimpleDecrypt(t *testing.T) {
 	if err != nil {
 		t.Errorf("failed to decrypt: %v", err.Error())
 	}
-	fmt.Printf("out = %q\n", out)
-}
-
-func TestPKCS7RegexDecrypt(t *testing.T) {
-
-	re := regexp.MustCompile(eyaml.PKCS7ENCPattern)
-	foundList := re.FindAllSubmatch([]byte(testFile), -1)
-	for _, found := range foundList {
-		fmt.Printf("%s -> %s\n", found[0], found[1])
-		d := string(found[1])
-		data, err := base64.StdEncoding.DecodeString(d)
-		if err != nil {
-			t.Errorf("could not b64 decode %v", err)
-		}
-		out, err := testPkcs7.DecryptBytes(data)
-		if err != nil {
-			t.Errorf("failed to decrypt: %v", err.Error())
-		}
-		fmt.Printf("out = %q\n", out)
+	if string(out) != string(testExpected) {
+		t.Errorf("\nunexpected: %q\nexpected %q\n", string(data), string(testExpected))
 	}
 }
 
@@ -112,8 +107,6 @@ func TestPKCS7ReaderDecrypt(t *testing.T) {
 hello-world: hello-world
 `
 	if string(data) != string(expected) {
-		t.Log(len(data))
-		t.Log(len(expected))
 		t.Errorf("\nunexpected: %q\nexpected %q\n", string(data), string(expected))
 	}
 }
