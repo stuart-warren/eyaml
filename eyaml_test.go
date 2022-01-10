@@ -1,7 +1,6 @@
 package eyaml_test
 
 import (
-	"bytes"
 	"encoding/base64"
 	"fmt"
 	"regexp"
@@ -102,58 +101,19 @@ func TestPKCS7RegexDecrypt(t *testing.T) {
 	}
 }
 
-// func TestPKCS7ReaderDecrypt(t *testing.T) {
-// 	r := strings.NewReader(testFile)
-// 	data, err := testPkcs7.Decrypt(r)
-// 	if err != nil {
-// 		t.Errorf("faild to decrypt: %v", err)
-// 	}
-// 	fmt.Printf("out = %s", data)
-// }
-
-func TestReader(t *testing.T) {
+func TestPKCS7ReaderDecrypt(t *testing.T) {
 	r := strings.NewReader(testFile)
-	var data []byte
-	_, err := r.Read(data)
+	data, err := testPkcs7.Decrypt(r)
 	if err != nil {
-		fmt.Print(err)
+		t.Errorf("faild to decrypt: %v", err)
 	}
-}
-
-func TestStream(t *testing.T) {
-	data := []byte("nteuhnt oheuo eunhtu ENC[PKCS7,MIIBeQYEKoZIhv] uoeeuon etuhu")
-
-	var buf bytes.Buffer
-	var markerStartIndex = -1
-	var dataStartIndex = -1
-	for i, b := range data {
-		switch true {
-		case b == 'E' && markerStartIndex == -1:
-			markerStartIndex = i
-		case b == 'N' && markerStartIndex >= 0 && markerStartIndex == i-1:
-		case b == 'C' && markerStartIndex >= 0 && markerStartIndex == i-2:
-		case b == '[' && markerStartIndex >= 0 && markerStartIndex == i-3:
-		case b == 'P' && markerStartIndex >= 0 && markerStartIndex == i-4:
-		case b == 'K' && markerStartIndex >= 0 && markerStartIndex == i-5:
-		case b == 'C' && markerStartIndex >= 0 && markerStartIndex == i-6:
-		case b == 'S' && markerStartIndex >= 0 && markerStartIndex == i-7:
-		case b == '7' && markerStartIndex >= 0 && markerStartIndex == i-8:
-		case b == ',' && markerStartIndex >= 0 && markerStartIndex == i-9:
-		case b == ']' && markerStartIndex >= 0: // must be checked for before data
-			markerStartIndex = -1
-			dataStartIndex = -1
-			fmt.Print(buf.Len()) // print out decryption instead
-			buf.Reset()
-		case markerStartIndex >= 0 && markerStartIndex == i-10:
-			dataStartIndex = i
-			buf.WriteByte(b)
-			fmt.Print(string('X')) // remove
-		case dataStartIndex >= 0:
-			buf.WriteByte(b)
-			fmt.Print(string('X')) // remove
-		default:
-			fmt.Print(string(b))
-		}
+	expected := `
+---
+hello-world: hello-world
+`
+	if string(data) != string(expected) {
+		t.Log(len(data))
+		t.Log(len(expected))
+		t.Errorf("\nunexpected: %q\nexpected %q\n", string(data), string(expected))
 	}
-	fmt.Print("\n")
 }

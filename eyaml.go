@@ -8,7 +8,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
-	"regexp"
 
 	"go.mozilla.org/pkcs7"
 )
@@ -53,50 +52,87 @@ func (e EyamlPkcs7) DecryptBytes(data []byte) ([]byte, error) {
 
 func (e EyamlPkcs7) Decrypt(r io.Reader) ([]byte, error) {
 	reader := e.newDecryptReader(r)
-	var data []byte
-	_, err := reader.Read(data)
-	if err != nil {
-		return []byte{}, err
+	data := make([]byte, 1024)
+	for {
+		_, err := reader.Read(data)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return []byte{}, err
+		}
 	}
-	return data, nil
+	return bytes.Trim(data, "\x00"), nil
+}
+
+type eyamlPkcs7DecryptReader struct {
+	source            io.Reader
+	err               error
+	pointer           int
+	pkcs7             EyamlPkcs7
+	payloadBuf        *bytes.Buffer
+	markerStartIndex  int
+	payloadStartIndex int
 }
 
 func (e EyamlPkcs7) newDecryptReader(source io.Reader) io.Reader {
 	return &eyamlPkcs7DecryptReader{
-		source: source,
-		err:    nil,
-		pkcs7:  e,
+		source:            source,
+		err:               nil,
+		pkcs7:             e,
+		payloadBuf:        bytes.NewBuffer(nil),
+		markerStartIndex:  -1,
+		payloadStartIndex: -1,
 	}
 }
 
-type eyamlPkcs7DecryptReader struct {
-	source io.Reader
-	err    error
-	count  int
-	pkcs7  EyamlPkcs7
-}
+func (r *eyamlPkcs7DecryptReader) Read(buf []byte) (int, error) {
 
-func (r *eyamlPkcs7DecryptReader) Read(data []byte) (int, error) {
-
-	n, err := r.source.Read(data)
+	count := 0
+	data := []byte{}
+	_, err := r.source.Read(buf)
 	if err != nil {
-		return n, err
+		return 0, err
 	}
-	//buf := make([]byte, n)
 
-	re := regexp.MustCompile(PKCS7ENCPattern)
-	foundList := re.FindAllSubmatch(data, -1)
-	fmt.Printf("len: %d\n", len(foundList))
-	for _, found := range foundList {
-		decoded, err := base64.StdEncoding.DecodeString(string(found[1]))
-		if err != nil {
-			return 0, fmt.Errorf("could not base64 decode string: %w", err)
+	for i, b := range buf {
+		switch true {
+		case b == 'E' && r.markerStartIndex == -1:
+			r.markerStartIndex = i
+		case b == 'N' && r.markerStartIndex >= 0 && r.markerStartIndex == i-1:
+		case b == 'C' && r.markerStartIndex >= 0 && r.markerStartIndex == i-2:
+		case b == '[' && r.markerStartIndex >= 0 && r.markerStartIndex == i-3:
+		case b == 'P' && r.markerStartIndex >= 0 && r.markerStartIndex == i-4:
+		case b == 'K' && r.markerStartIndex >= 0 && r.markerStartIndex == i-5:
+		case b == 'C' && r.markerStartIndex >= 0 && r.markerStartIndex == i-6:
+		case b == 'S' && r.markerStartIndex >= 0 && r.markerStartIndex == i-7:
+		case b == '7' && r.markerStartIndex >= 0 && r.markerStartIndex == i-8:
+		case b == ',' && r.markerStartIndex >= 0 && r.markerStartIndex == i-9:
+		case b == ']' && r.markerStartIndex >= 0: // must be checked for, before encrypted payload
+			r.markerStartIndex = -1
+			r.payloadStartIndex = -1
+			decoded, err := base64.StdEncoding.DecodeString(r.payloadBuf.String())
+			if err != nil {
+				return 0, fmt.Errorf("could not base64 decode string: %w", err)
+			}
+			decrypted, err := r.pkcs7.DecryptBytes(decoded)
+			if err != nil {
+				return 0, fmt.Errorf("could not decrypt string: %w", err)
+			}
+			// TODO: handle whitespace indents here
+			data = append(data, decrypted...)
+			r.payloadBuf.Reset()
+		case r.markerStartIndex >= 0 && r.markerStartIndex == i-10:
+			r.payloadStartIndex = i
+			r.payloadBuf.WriteByte(b)
+		case r.payloadStartIndex >= 0:
+			r.payloadBuf.WriteByte(b)
+		default:
+			data = append(data, b)
 		}
-		decrypted, err := r.pkcs7.DecryptBytes(decoded)
-		if err != nil {
-			return 0, fmt.Errorf("failed to decrypt: %w", err)
-		}
-		data = bytes.Replace(data, found[0], decrypted, -1)
 	}
-	return r.count, nil
+
+	count = copy(buf, data[:len(buf)])
+	r.pointer += count
+	return count, nil
 }
