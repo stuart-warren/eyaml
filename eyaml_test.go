@@ -18,14 +18,14 @@ hello-world: ENC[PKCS7,MIIBeQYJKoZIhvcNAQcDoIIBajCCAWYCAQAxggEhMIIBHQIBADAFMAACA
 ---
 hello-world: >
 	ENC[PKCS7,MIIBeQYJKoZIhvcNAQcDoIIBajCCAWYCAQAxggEhMIIBHQIBAD
-	AFMAACAQEwDQYJKoZIhvcNAQEBBQAEggEACWO6CXyf5sJ9vgtMqEPqaBd6hC
-	O7lhOIWOF6Azy2x50ByVylqRcjpEGRbkOXZ5gyjPQS6V54ye8kSA0XHvrExe
-	+D88s6FZx4e5ELvc8UeOmfuDsF2K6a7nIZ3+NVwdwRss6X4a72ElIZQp2pob
-	7eUBTRU1YFipOLccFHncW8KzV2JAs4XU7fCoFPTjgaTFQ30iyeKpEmcZHdg/
-	vQJOdkhiUHCuIMktkCb132kEwT3XClb4ABBoEdIbDHnKUCg7lGU3GlHSKG6t
-	6fMTIpIAShqzw89jFlie0iNCghxqQsSxN3chPA6plXxR8pZ/QcEfSaGOZisa
-	TP0+49I5JBk2i4qDA8BgkqhkiG9w0BBwEwHQYJYIZIAWUDBAEqBBDqGci6kI
-	3pQ2loN6bJSj0TgBCzLgpKaC2Kttx2rk8RMZ9m]
+	AFMAACAQEwDQYJKoZIhvcNAQEBBQAEggEACQBH+twZeMWqgirTI+f2QfKVO8
+	73Sr736Fh+d2zpUURf0C5fn6YGekEdasoa00MF/5f7wuyJr5yqGnNv2wXKvj
+	dcuXHIRLQvKD/GaNoTblapsa7uwHRqF+yumAMUuuAOP47zxfCBwB968jI1OO
+	nnDnWfVlXw+3PLRcdVTM0tLFNEF7+TSIqDCzh9hecGVHI2VKi6KNvXFd/XcM
+	SUsdmE2z9ja5SPAG3NLPOG5762c5EzJuV6ktV8/1EwEwWh7pACyFmrOk6tdk
+	YhIMvPHWKwmb9Xk2O5OeTS4cwpqgG3q2X5cFVwUzOpuOS9goJ7jCJgiRR1wH
+	7/BPKcJ605FANKjDA8BgkqhkiG9w0BBwEwHQYJYIZIAWUDBAEqBBBS7gmDT5
+	jo8K/2oR4sO2b8gBCccQQQgwi4SQAPq5ZufqkR]
 `
 	testExpected = "hello-world"
 	pubCert      = `
@@ -105,6 +105,22 @@ func TestPKCS7ReaderDecrypt(t *testing.T) {
 	expected := `
 ---
 hello-world: hello-world
+`
+	if string(data) != string(expected) {
+		t.Errorf("\nunexpected: %q\nexpected %q\n", string(data), string(expected))
+	}
+}
+
+func TestPKCS7ReaderDecryptComplex(t *testing.T) {
+	r := strings.NewReader(testFile2)
+	data, err := testPkcs7.Decrypt(r)
+	if err != nil {
+		t.Errorf("failed to decrypt: %v", err)
+	}
+	expected := `
+---
+hello-world: >
+	hello-world
 `
 	if string(data) != string(expected) {
 		t.Errorf("\nunexpected: %q\nexpected %q\n", string(data), string(expected))

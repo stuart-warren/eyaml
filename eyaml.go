@@ -86,41 +86,51 @@ func (r *eyamlPkcs7DecryptReader) Read(buf []byte) (int, error) {
 		return 0, err
 	}
 
-	for i, b := range source {
+	for _, b := range source {
 		switch true {
 		case b == 'E' && r.markerStartIndex == -1:
-			r.markerStartIndex = i
-		case b == 'N' && r.markerStartIndex >= 0 && r.markerStartIndex == i-1:
-		case b == 'C' && r.markerStartIndex >= 0 && r.markerStartIndex == i-2:
-		case b == '[' && r.markerStartIndex >= 0 && r.markerStartIndex == i-3:
-		case b == 'P' && r.markerStartIndex >= 0 && r.markerStartIndex == i-4:
-		case b == 'K' && r.markerStartIndex >= 0 && r.markerStartIndex == i-5:
-		case b == 'C' && r.markerStartIndex >= 0 && r.markerStartIndex == i-6:
-		case b == 'S' && r.markerStartIndex >= 0 && r.markerStartIndex == i-7:
-		case b == '7' && r.markerStartIndex >= 0 && r.markerStartIndex == i-8:
-		case b == ',' && r.markerStartIndex >= 0 && r.markerStartIndex == i-9:
-		case b == ']' && r.markerStartIndex >= 0: // must be checked for, before encrypted payload
+			r.markerStartIndex = r.pointer
+		case b == 'N' && r.markerStartIndex >= 0 && r.markerStartIndex == r.pointer-1:
+		case b == 'C' && r.markerStartIndex >= 0 && r.markerStartIndex == r.pointer-2:
+		case b == '[' && r.markerStartIndex >= 0 && r.markerStartIndex == r.pointer-3:
+		case b == 'P' && r.markerStartIndex >= 0 && r.markerStartIndex == r.pointer-4:
+		case b == 'K' && r.markerStartIndex >= 0 && r.markerStartIndex == r.pointer-5:
+		case b == 'C' && r.markerStartIndex >= 0 && r.markerStartIndex == r.pointer-6:
+		case b == 'S' && r.markerStartIndex >= 0 && r.markerStartIndex == r.pointer-7:
+		case b == '7' && r.markerStartIndex >= 0 && r.markerStartIndex == r.pointer-8:
+		case b == ',' && r.markerStartIndex >= 0 && r.markerStartIndex == r.pointer-9: // payload marker complete, next char is payload itself
+		case b == ']' && r.markerStartIndex >= 0 && r.payloadStartIndex >= 0: // end of payload marker. must be checked for, before encrypted payload
 			r.markerStartIndex = -1
 			r.payloadStartIndex = -1
 			decoded, err := base64.StdEncoding.DecodeString(r.payloadBuf.String())
 			if err != nil {
 				return 0, fmt.Errorf("could not base64 decode string: %w", err)
 			}
+			r.payloadBuf.Reset()
 			decrypted, err := r.pkcs7.DecryptBytes(decoded)
 			if err != nil {
 				return 0, fmt.Errorf("could not decrypt string: %w", err)
 			}
 			// TODO: handle whitespace indents here
 			data = append(data, decrypted...)
-			r.payloadBuf.Reset()
-		case r.markerStartIndex >= 0 && r.markerStartIndex == i-10:
-			r.payloadStartIndex = i
+		case r.markerStartIndex >= 0 && r.markerStartIndex == r.pointer-10: // first char of encrypted payload
+			r.payloadStartIndex = r.pointer
 			r.payloadBuf.WriteByte(b)
-		case r.payloadStartIndex >= 0:
+		case r.markerStartIndex >= 0 && r.payloadStartIndex < 0 && (r.pointer)-(r.markerStartIndex) <= 10: // any unexpected char after beginning of payload marker, but before complete
+			r.payloadStartIndex = -1
+			data = append(data, b)
+		case b == '\n' && r.payloadStartIndex >= 0: // newline within encrypted payload
+			fmt.Print("nl") //FIXME
+		case b == '\t' && r.payloadStartIndex >= 0: // tab char within encrypted payload
+			fmt.Print("tb") //FIXME
+		case b == ' ' && r.payloadStartIndex >= 0: // space char within encrypted payload
+			fmt.Print("sp") //FIXME
+		case r.payloadStartIndex >= 0: // any other char within encrypted payload
 			r.payloadBuf.WriteByte(b)
-		default:
+		default: // any other char
 			data = append(data, b)
 		}
+		r.pointer++
 	}
 
 	count = copy(buf, bytes.Trim(data, "\x00"))
